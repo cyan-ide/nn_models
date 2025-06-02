@@ -16,8 +16,14 @@ class GPT_Config: #default config as per GPT-2 paper, smallest GPT-2 version
     embedding_size: int = 768 #embedding size
     layer_count: int = 12 #gpt2 number of transformer decoder layers
     head_count: int = 12 #gpt2 number of heads in self-attention for each decoder layer
+    optimize_speed: bool = True #all sort of optimizations that might sacrifice a bit of accuracy for speed/memory improvements
 
-
+#gpt2 model 
+#predicts next token at every position of the input 
+#(for training this is quite efficient, as we get many prediction in one go)
+#(for inference this is a bit of a waste as we need only prediction for last token)
+#x= (batch_size, tokens==max_tokens)
+#y= (batch_size, expected tokens, y[i] = prediction if taking input only up to i-th token) (used during training)
 class GPT_2(nn.Module):
     def __init__(self,config):
         super().__init__()
@@ -33,13 +39,22 @@ class GPT_2(nn.Module):
         ))
         self.lm_head = nn.Linear(self.config.embedding_size, self.config.vocabulary_size, bias=False)
 
-    def forward(self,x):
+        # [optional: optimization / memory] weight sharing scheme, reduces model size in memory
+        if self.config.optimize_speed:
+            self.transformer.wte.weight = self.lm_head.weight
+
+        # [optional: optimization / performance ] custom init weights
+        if self.config.optimize_speed:
+            self.apply(self._init_weights) #iterate all layers and apply init_weights to each
+
+    def forward(self,x, y=None):
         batch_size, token_count = x.size()
         assert token_count <= self.config.max_context_size, f"Max context token count is only {self.config.max_context_size}, your input size is: {token_count}"
 
         #1. encode input into embedding (for each "word" in the input we create an embedding)
+        # print(x.size())
         token_emb = self.transformer.wte(x) # token embeddings of shape (batch_size, token_count, embedding_size)
-
+        # print(token_emb.size())
         #2. additionally calculate positional embedding, ie. sequential numbers for position of every "word" in the input
         positions = torch.arange(0, token_count, dtype=torch.long, device=x.device) # shape (token_count)
         position_emb = self.transformer.wpe(positions) # position embeddings of shape (token_count, embedding_size)
@@ -51,7 +66,28 @@ class GPT_2(nn.Module):
         #4. Do final layernorm and classifier head that will output probabilities for each vocabulary word (ie. next word)
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (batch_size, token_count, vocabulary_size)
-        return logits
+        
+        loss = None
+        if y is not None: #compare prediction to expected value (if available) and calculate loss
+            # cross_entropy(out,y) 
+            # out = [batch_size * token_count, vocab_size] -> fold logits such that all samples from all batches are considered same
+            # y = [batch_size * token_count]
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+        return logits, loss
+
+    #init model weights, values are taken from GPT-2 code by OpenAI
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, 'CUSTOM_INIT_SCALING'): #add additional scaling
+                std *= (2 * self.config.layer_count) ** -0.5
+
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     @classmethod
     def from_pretrained(cls, model_type): #import weights from huggingface (for testing compatibility with other GPT2 implementation)
@@ -106,52 +142,3 @@ class GPT_2(nn.Module):
                     local_state_dict[k].copy_(hf_state_dict[k])
 
         return model
-
-
-
-model = GPT_2.from_pretrained('gpt2')
-
-
-#test model
-num_return_sequences = 5
-max_length = 30
-
-model.eval()
-model.to('cuda')
-
-# prefix tokens
-import tiktoken
-enc = tiktoken.get_encoding('gpt2')
-tokens = enc.encode("Hello, I'm a language model,")
-tokens = torch.tensor(tokens, dtype=torch.long) # (8,)
-tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1) # (5, 8)
-x = tokens.to('cuda')
-
-# generate! right now x is (B, T) where B = 5, T = 8
-# set the seed to 42
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-while x.size(1) < max_length:
-    # forward the model to get the logits
-    with torch.no_grad():
-        logits = model(x) # (B, T, vocab_size)
-        # take the logits at the last position
-        logits = logits[:, -1, :] # (B, vocab_size)
-        # get the probabilities
-        probs = F.softmax(logits, dim=-1)
-        # do top-k sampling of 50 (huggingface pipeline default)
-        # topk_probs here becomes (5, 50), topk_indices is (5, 50)
-        topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
-        # select a token from the top-k probabilities
-        # note: multinomial does not demand the input to sum to 1
-        ix = torch.multinomial(topk_probs, 1) # (B, 1)
-        # gather the corresponding indices
-        xcol = torch.gather(topk_indices, -1, ix) # (B, 1)
-        # append to the sequence
-        x = torch.cat((x, xcol), dim=1)
-
-# print the generated text
-for i in range(num_return_sequences):
-    tokens = x[i, :max_length].tolist()
-    decoded = enc.decode(tokens)
-    print(">", decoded)
