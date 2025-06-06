@@ -5,10 +5,10 @@ import torch.nn.functional as F
 import torch
 
 
-MODEL_DIR = "/mnt/ssd/home/adam/huggingface_models/" #cache for models
+MODEL_DIR = "<directory_to_store_models>" #cache for models
 
-#GPT2 implementation following Andrej Karpathy tutorial / code (and some other web sources)
-#Base transformer implementation inspired by tutorial of Peter Bloem
+# GPT2 implementation following Andrej Karpathy tutorial / code (and some other web sources)
+# Base transformer implementation inspired by tutorial of Peter Bloem
 
 class GPT_Config: #default config as per GPT-2 paper, smallest GPT-2 version
     max_context_size: int = 1024 #gpt2 max input size in tokens
