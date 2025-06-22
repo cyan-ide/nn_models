@@ -87,10 +87,15 @@ class TransformerBlock(nn.Module):
             nn.Linear(in_features=4 * embedding_size, out_features=embedding_size))
 
     def forward(self, x):
-        output = self.attention(values=x ,keys=x,queries=x)
-        output_mid = self.norm1(output+x) #+x is the residual connection
-        output = self.ff(output_mid)
-        output = self.norm2(output+output_mid) #+output_min is the residual connection
+        #v1 - mine
+        # output = self.attention(values=x ,keys=x,queries=x)
+        # output_mid = self.norm1(output+x) #+x is the residual connection
+        # output = self.ff(output_mid)
+        # output = self.norm2(output+output_mid) #+output_min is the residual connection
+        #v2 -ln before attention (as in karapathy gpt)
+        output = self.norm1(x)
+        output = x + self.attention(values=output ,keys=output,queries=output)
+        output = output + self.ff(self.norm2(output))
         return output
 
 #------------------------------------------------------------------------------------------

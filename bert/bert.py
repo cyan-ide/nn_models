@@ -31,8 +31,8 @@ class BERT(nn.Module):
         self.max_pool = max_pool
 
         #embeddings which are used to wrap the regular input        
-        self.token_embedding = nn.Embedding(num_embeddings=vocabulary_size, embedding_dim=embedding_size)
-        self.segment_embedding = nn.Embedding(num_embeddings=segment_no, embedding_dim=embedding_size)
+        self.token_embedding = nn.Embedding(num_embeddings=vocabulary_size, embedding_dim=embedding_size, padding_idx=0)
+        self.segment_embedding = nn.Embedding(num_embeddings=segment_no, embedding_dim=embedding_size, padding_idx=0)
         self.position_embedding = nn.Embedding(num_embeddings=max_input_length, embedding_dim=embedding_size)
 
         #transformer blocks
@@ -73,7 +73,7 @@ class BERT(nn.Module):
         x= self.dropout(x)
 
         #3. learning head 
-        y1 = self.lm_head_1(x) #pre-training #1, predict probs for every token (ie. predict masked token)
+        y1 = self.lm_head_1(x) #pre-training #1, predict probs for every token (ie. predict masked token) # [<batch_n>, 128, 30000]
 
         #pre-training #2, predict if sentences given as B is next or not (ie. 2 probabilities for binary choice)
         # at output we want only 2 predictions so pool over the token_count dimension to reduce size (either via max or mean)
@@ -83,7 +83,9 @@ class BERT(nn.Module):
             x.mean(dim=1) 
         y2 = self.lm_head_2(x)
 
-        return F.softmax(y1, dim=1), F.softmax(y2, dim=1) #make into probability
+        # return F.softmax(y1, dim=2), F.softmax(y2, dim=1) #make into probability
+        # return y1, F.softmax(y1, dim=2), y2, F.softmax(y2, dim=1)
+        return y1, y2 #output un-normalized values (ie. later the crossEntropy uses non-normalized, softmax is needed only for predictions)
 
 
 if __name__ == "__main__":
