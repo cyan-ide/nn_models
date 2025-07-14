@@ -8,6 +8,10 @@ In comparison to BERT paper I pre-trained just for 1 epoch, only with BookCorpus
 
 My result is training accuracy = 0.614243 with loss = 1.921875 (or validation accuracy = 0.6306, with loss 1.8438) at the end of training. In comparison to accuracy: 0.5167 / loss: 2.78125 for HuggingFace pre-trained model tested on same validation set. Not bad!
 
+![BERT training loss vs. HF loss](images/bert_comparison_plots_training.png)
+
+![BERT training accuracy vs. val accuracy](images/bert_comparison_train_accuracy.png)
+
 Training took about 2 days on 2xH100.
 
 
