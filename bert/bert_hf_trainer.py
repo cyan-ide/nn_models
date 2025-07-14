@@ -1,3 +1,5 @@
+#script to compare huggingface implementation with my own, uses all the HF wrapper class for training (Trainer, TrainerArgs etc.)
+
 
 HUGGINGFACE_DATA_CACHE = "/home/adam/huggingface_data_cache/"
 MODEL_DIR = "/home/adam/huggingface_models/" #cache for models

@@ -32,7 +32,7 @@ class BERT(nn.Module):
 
         #embeddings which are used to wrap the regular input        
         self.token_embedding = nn.Embedding(num_embeddings=vocabulary_size, embedding_dim=embedding_size, padding_idx=0)
-        self.segment_embedding = nn.Embedding(num_embeddings=segment_no, embedding_dim=embedding_size, padding_idx=0)
+        # self.segment_embedding = nn.Embedding(num_embeddings=segment_no, embedding_dim=embedding_size, padding_idx=0)
         self.position_embedding = nn.Embedding(num_embeddings=max_input_length, embedding_dim=embedding_size)
 
         #transformer blocks
@@ -47,12 +47,14 @@ class BERT(nn.Module):
 
         #learning heads for 2 pre-training types (there are 2 in BERT paper)
         self.lm_head_1 = nn.Linear(in_features=embedding_size, out_features=vocabulary_size, bias=False) #(1st pre-training type): predict missing word from vocabulary
-        self.lm_head_2 = nn.Linear(in_features=embedding_size,  out_features=2, bias=False) #(2nd pre-training type): predict next sentence (two sentenes are given as input and model needs to decide if one follows another, i.e. 2 labels, next or not-next)
+        #TEMP remove NSP: as it gives ~1-2% difference, has been proven not to work in later research and its quite a drag to implement
+        # self.lm_head_2 = nn.Linear(in_features=embedding_size,  out_features=2, bias=False) #(2nd pre-training type): predict next sentence (two sentenes are given as input and model needs to decide if one follows another, i.e. 2 labels, next or not-next)
 
-    def forward(self, x, x_segment_mask, y=None):
+    def forward(self, x, y=None): #, x_segment_mask #TEMP remove NSP
         #embeddings
         tokens = self.token_embedding(x)
-        segments = self.segment_embedding(x_segment_mask)
+        #TEMP remove NSP: as it gives ~1-2% difference, has been proven not to work in later research and its quite a drag to implement
+        # segments = self.segment_embedding(x_segment_mask)
 
         batch_size, token_count, embedding_size = tokens.size()  #token_count == amount of input "words"
         positions = torch.arange(token_count,device=self.device) #actual value == sequence of word positions [0...#word_count]
@@ -60,8 +62,8 @@ class BERT(nn.Module):
         positions = positions[None, :, :] #add batch size to tensor (set as 1)
         positions = positions.expand(batch_size, token_count, embedding_size) # reshape to final embedding size, increasing to input batch size 
 
-        x = tokens + segments + positions
-        # x = tokens + positions
+        # x = tokens + segments + positions #TEMP remove NSP
+        x = tokens + positions
         # x = tokens
         # x = positions
 
@@ -75,17 +77,20 @@ class BERT(nn.Module):
         #3. learning head 
         y1 = self.lm_head_1(x) #pre-training #1, predict probs for every token (ie. predict masked token) # [<batch_n>, 128, 30000]
 
+        #TEMP remove NSP
         #pre-training #2, predict if sentences given as B is next or not (ie. 2 probabilities for binary choice)
         # at output we want only 2 predictions so pool over the token_count dimension to reduce size (either via max or mean)
-        if self.max_pool:
-            x = x.max(dim=1)[0]
-        else: 
-            x.mean(dim=1) 
-        y2 = self.lm_head_2(x)
+        # if self.max_pool:
+        #     x = x.max(dim=1)[0]
+        # else: 
+        #     x.mean(dim=1) 
+        # y2 = self.lm_head_2(x)
 
         # return F.softmax(y1, dim=2), F.softmax(y2, dim=1) #make into probability
         # return y1, F.softmax(y1, dim=2), y2, F.softmax(y2, dim=1)
-        return y1, y2 #output un-normalized values (ie. later the crossEntropy uses non-normalized, softmax is needed only for predictions)
+        #
+        return y1 #, y2 #output un-normalized values (ie. later the crossEntropy uses non-normalized, softmax is needed only for predictions)
+        #return y1, y2 #TEMP remove NSP #output un-normalized values (ie. later the crossEntropy uses non-normalized, softmax is needed only for predictions)
 
 
 if __name__ == "__main__":

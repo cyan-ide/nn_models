@@ -100,72 +100,6 @@ class TransformerBlock(nn.Module):
 
 #------------------------------------------------------------------------------------------
 
-#transformer made for classification
-class Classifier_Transformer(nn.Module):
-    def __init__(self, embedding_size, heads_no, transformer_block_no, vocabulary_size, max_input_length, num_classes, device, max_pool=True, dropout=0.0):
-        super().__init__()
-        # self.transformerBlock = TransformerBlock(embedding_size=embedding_size, heads_no=heads_no)
-
-        self.max_pool = max_pool #If true, use global max pooling in the last layer. If false, use global average pooling.
-
-        #embeddings which are used to wrap the regular input
-        self.token_embedding = nn.Embedding(embedding_dim=embedding_size, num_embeddings=vocabulary_size)
-        self.pos_embedding = nn.Embedding(embedding_dim=embedding_size, num_embeddings=max_input_length)
-
-        #dropout (done after embeddings for stabilising output)
-        self.dropout = nn.Dropout(dropout)
-
-        #transformer blocks
-        transformer_blocks = []
-        for i in range(transformer_block_no):
-            transformer_blocks.append( TransformerBlock(embedding_size=embedding_size, heads_no=heads_no) )
-
-        self.transformer_blocks = nn.Sequential(*transformer_blocks)
-
-        #classification head
-        self.classification_head = nn.Linear(in_features=embedding_size, out_features=num_classes) #one output value per each class
-
-        self.device = device
-
-    def forward(self, x):
-        # return x
-        #1. encode input into embedding (for each "word" in the input we create an embedding)
-        tokens = self.token_embedding(x)
-        # return tokens
-        # additionally calculate positional embedding, ie. sequential numbers for position of every "word" in the input
-
-        #TEMP: disable, some errors here
-        # print(tokens.shape)
-        batch_size, token_count, embedding_size = tokens.size()  #token_count == amount of input "words"
-        positions = torch.arange(token_count,device=self.device) #actual value == sequence of word positions [0...#word_count]
-        positions = self.pos_embedding(positions) #calculate embedding
-        positions = positions[None, :, :] #add batch size to tensor (set as 1)
-        positions = positions.expand(batch_size, token_count, embedding_size) # reshape to final embedding size, increasing to input batch size 
-
-        x= tokens + positions
-
-        x = tokens
-        x= self.dropout(x)
-        # print("embedding size: {}".format(x.shape)) 
-
-        #2. go through all transformer blocks
-        #out = self.transformerBlock(x)
-        x= self.transformer_blocks(x)
-        x= self.dropout(x)
-
-        # pool over the time dimension
-        if self.max_pool:
-            x = x.max(dim=1)[0]
-        else: 
-            x.mean(dim=1) 
-
-        x = self.classification_head(x)
-
-        return F.softmax(x, dim=1) #make into probability
-        # return F.log_softmax(x, dim=1) #make into probability
-
-
-
 #test run
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -178,15 +112,4 @@ if __name__ == "__main__":
     #test input, generate random 2 inputs with tokens up to max vocab-size, and using max embedding size
     x = torch.randint(low=0, high=VOCAB_SIZE, size=(2, EMBEDDING_SIZE), dtype=torch.long).to(device)    
 
-    transformer = Classifier_Transformer(embedding_size=EMBEDDING_SIZE
-                            , heads_no=ATTENTION_HEADS
-                            , transformer_block_no = TRANSFORMER_BLOCK_NO
-                            , vocabulary_size= VOCAB_SIZE
-                            , max_input_length=MAX_INPUT_SIZE
-                            , num_classes = NUM_CLS
-                            , device=device).to(device)
-    out = transformer(x)
-    print("INPUT size: {}".format(x.shape))
-    print("OUTPUT size: {}".format(out.shape))
-    print("---------------------------------")
-    print("Output: {}".format(out))
+    #TODO
