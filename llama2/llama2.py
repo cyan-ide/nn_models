@@ -7,8 +7,10 @@ import torch
 
 MODEL_DIR = "/mnt/ssd/home/adam/huggingface_models/" #cache for models
 
+# Llama2 bits done following very nice tutorial by Sebastian Raschka done for his "Build a Large Language Model From Scratch"
 # GPT2 implementation following Andrej Karpathy tutorial / code (and some other web sources)
 # Base transformer implementation inspired by tutorial of Peter Bloem
+
 
 class Llama_Config: #default config as per GPT-2 paper, smallest GPT-2 version
     max_context_size: int = 1024 # TODO: 4096 in llama2 max input size in tokens
